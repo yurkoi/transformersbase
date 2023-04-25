@@ -70,7 +70,3 @@ def clean_prepare():
         collate_fn=data_collator
     )
     return train_loader, valid_loader
-
-
-if __name__ == "__main__":
-    pass
