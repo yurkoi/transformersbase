@@ -6,8 +6,14 @@ from datetime import datetime
 from tqdm import tqdm
 import numpy as np
 from clean_prep import clean_prepare, tokenizer
+from lightning.pytorch import Trainer
+from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+
+logger = TensorBoardLogger("tb_logs", name="encoder_class")
 
 
+# classic pytorch training
 def train(model, criterion, optimizer, train_loader, valid_loader, epochs):
     train_losses = np.zeros(epochs)
     test_losses = np.zeros(epochs)
@@ -39,7 +45,7 @@ def train(model, criterion, optimizer, train_loader, valid_loader, epochs):
         train_losses[it] = train_loss
         test_losses[it] = test_loss
         dt = datetime.now() - t0
-        print(f"Epoch {it + 1}/{epochs}, Train Loss: {train_loss:.4f}, Test Loss: {test_loss:.4f}, Durtion: {dt}")
+        print(f"Epoch {it + 1}/{epochs}, Train Loss: {train_loss:.4f}, Test Loss: {test_loss:.4f}, Duration: {dt}")
     return train_losses, test_losses
 
 
@@ -56,12 +62,21 @@ if __name__ == "__main__":
         n_classes=configs.NUM_CLASSES,
         dropout_prob=configs.DROPOUT
     )
-    model.to(device)
+    # model.to(device)
+    #
+    # criterion = nn.CrossEntropyLoss()
+    # optimizer = torch.optim.Adam(model.parameters())
+    # train_loader, valid_loader = clean_prepare()
+    # train_losses, test_losses = train(model, criterion, optimizer, train_loader,
+    #                                   valid_loader, epochs=configs.EPOCHS)
+    #
+    # torch.save(model.state_dict(), 'models/model.pt')
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters())
+    trainer = Trainer(
+        callbacks=[EarlyStopping(monitor="val_loss", mode="min")],
+        max_epochs=10,
+        min_epochs=3,
+        logger=model.logger)
+
     train_loader, valid_loader = clean_prepare()
-    train_losses, test_losses = train(model, criterion, optimizer, train_loader,
-                                      valid_loader, epochs=configs.EPOCHS)
-
-    torch.save(model.state_dict(), 'models/model.pt')
+    trainer.fit(model, train_loader, valid_loader)

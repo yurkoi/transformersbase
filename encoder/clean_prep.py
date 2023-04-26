@@ -3,10 +3,14 @@ from transformers import DataCollatorWithPadding
 from transformers import BertTokenizerFast
 from torch.utils.data import DataLoader
 import configs
+import os
 
 
 checkpoint = 'bert-base-uncased'
 tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = 'true'
 
 
 def map_start_to_label(review):
@@ -20,7 +24,8 @@ def map_start_to_label(review):
 
 
 def tokenize_fn(batch):
-    return tokenizer.batch_encode_plus(batch['fulltext'], max_length=128, padding='max_length', truncation=True)
+    # return tokenizer.batch_encode_plus(batch['fulltext'], max_length=128, padding='max_length', truncation=True)
+    return tokenizer(batch['fulltext'], max_length=128, padding='max_length', truncation=True)
 
 
 def clean_prepare():
@@ -61,12 +66,14 @@ def clean_prepare():
         tokenized_datasets['train'],
         shuffle=True,
         batch_size=configs.BATCH_SIZE,
-        collate_fn=data_collator
+        collate_fn=data_collator,
+        num_workers=12
     )
 
     valid_loader = DataLoader(
         tokenized_datasets['validation'],
         batch_size=configs.BATCH_SIZE,
-        collate_fn=data_collator
+        collate_fn=data_collator,
+        num_workers=12
     )
     return train_loader, valid_loader

@@ -4,7 +4,15 @@ import configs
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchmetrics
 import numpy as np
+import lightning.pytorch as pl
+from clean_prep import clean_prepare, tokenizer
+from lightning.pytorch import Trainer
+from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+
+logger = TensorBoardLogger("tb_logs", name="encoder_classifier")
 
 
 class MultiHeadAttention(nn.Module):
@@ -103,13 +111,15 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class Encoder(nn.Module):
+class Encoder(pl.LightningModule):
     def __init__(
         self, vocab_size, max_len, d_k, d_model,
         n_heads, n_layers, n_classes, dropout_prob
     ):
         super().__init__()
 
+        self.train_acc = torchmetrics.Accuracy(task="multiclass", num_classes=configs.NUM_CLASSES)
+        self.valid_acc = torchmetrics.Accuracy(task="multiclass", num_classes=configs.NUM_CLASSES)
         self.embedding = nn.Embedding(vocab_size, d_model)
         self.pos_encoding = PositionalEncoding(d_model, max_len, dropout_prob)
         transformers_blocks = [
@@ -120,34 +130,59 @@ class Encoder(nn.Module):
         self.ln = nn.LayerNorm(d_model)
         self.fc = nn.Linear(d_model, n_classes)
 
+        self.loss = nn.CrossEntropyLoss()
+
     def forward(self, x, mask=None):
         x = self.embedding(x)
         x = self.pos_encoding(x)
-
         for block in self.transformer_blocks:
             x = block(x, mask)
-
         x = x[:, 0, :]
         x = self.ln(x)
         x = self.fc(x)
-
         return x
+
+    def training_step(self, batch, batch_idx):
+        x = batch
+        outputs = self.forward(x['input_ids'], x['attention_mask'])
+        loss = self.loss(outputs, x['labels'])
+        acc = self.train_acc(outputs, x['labels'])
+
+        self.log_dict({'train_loss': loss, 'train_accuracy': acc}, on_step=True, on_epoch=True, prog_bar=True,
+                      logger=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        y = batch
+        outputs = self.forward(y['input_ids'], y['attention_mask'])
+        loss = self.loss(outputs, y['labels'])
+        acc = self.valid_acc(outputs, y['labels'])
+        self.log_dict({'val_loss': loss, 'val_accuracy': acc}, on_step=True, on_epoch=True, prog_bar=True,
+                      logger=True)
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
 
 
 if __name__ == "__main__":
-
-    model = Encoder(configs.VOCAB_SIZE, configs.MAX_LENGTH, configs.QK_SIZE,
-                    configs.EMBED_SIZE, configs.N_HEADS, configs.N_LAYERS,
-                    configs.NUM_CLASSES, configs.DROPOUT)
-
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(device)
-    model.to(device)
-
-    x = np.random.randint(0, 20000, size=(8, 512))
-    x_t = torch.tensor(x).to(device)
-    mask = np.ones((8, 512))
-    mask[:, 256:] = 0
-    mask_t = torch.tensor(mask).to(device)
-    y = model(x_t, mask_t)
-    print(y)
+    pass
+    # model = Encoder(
+    #     vocab_size=tokenizer.vocab_size,
+    #     max_len=configs.MAX_LENGTH,
+    #     d_k=configs.QK_SIZE,
+    #     d_model=configs.EMBED_SIZE,
+    #     n_heads=configs.N_HEADS,
+    #     n_layers=configs.N_LAYERS,
+    #     n_classes=configs.NUM_CLASSES,
+    #     dropout_prob=configs.DROPOUT)
+    #
+    # trainer = Trainer(
+    #     callbacks=[EarlyStopping(monitor="val_loss", mode="min")],
+    #     max_epochs=10,
+    #     min_epochs=3,
+    #     logger=model.logger)
+    #
+    # train_loader, valid_loader = clean_prepare()
+    # trainer.fit(model, train_loader, valid_loader)
