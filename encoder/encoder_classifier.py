@@ -5,14 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchmetrics
-import numpy as np
 import lightning.pytorch as pl
-from clean_prep import clean_prepare, tokenizer
-from lightning.pytorch import Trainer
-from lightning.pytorch.loggers import TensorBoardLogger
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-
-logger = TensorBoardLogger("tb_logs", name="encoder_classifier")
 
 
 class MultiHeadAttention(nn.Module):
@@ -164,25 +157,3 @@ class Encoder(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
-
-
-if __name__ == "__main__":
-    pass
-    # model = Encoder(
-    #     vocab_size=tokenizer.vocab_size,
-    #     max_len=configs.MAX_LENGTH,
-    #     d_k=configs.QK_SIZE,
-    #     d_model=configs.EMBED_SIZE,
-    #     n_heads=configs.N_HEADS,
-    #     n_layers=configs.N_LAYERS,
-    #     n_classes=configs.NUM_CLASSES,
-    #     dropout_prob=configs.DROPOUT)
-    #
-    # trainer = Trainer(
-    #     callbacks=[EarlyStopping(monitor="val_loss", mode="min")],
-    #     max_epochs=10,
-    #     min_epochs=3,
-    #     logger=model.logger)
-    #
-    # train_loader, valid_loader = clean_prepare()
-    # trainer.fit(model, train_loader, valid_loader)

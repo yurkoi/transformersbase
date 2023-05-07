@@ -3,10 +3,9 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import dataset
+import lightning.pytorch as pl
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 class CausalSelfAttention(nn.Module):
@@ -102,7 +101,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class Decoder(nn.Module):
+class Decoder(pl.LightningModule):
     def __init__(self,
                  vocab_size,
                  max_len,
